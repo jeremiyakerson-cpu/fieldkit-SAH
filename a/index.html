@@ -8,7 +8,22 @@
 <meta name="theme-color" content="#F3F6F9">
 <meta name="robots" content="noindex,nofollow,noarchive">
 <!-- Confidential pilot build. Evaluation use only under the pilot agreement. -->
-<link rel="manifest" href="./manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dx Pilot">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<script>
+  // On an iPhone or iPad the Home Screen copy keeps its own storage and opens whatever address was on screen
+  // when it was added. A web manifest would replace that address with one that has no signed link, and the
+  // Home Screen copy would open on "Open the pilot from your link" with no way forward. So Apple devices get
+  // no manifest (the tags above make the Home Screen copy full-screen); every other device gets one.
+  (function () {
+    var ua = navigator.userAgent || "";
+    var ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    window.__DX_IOS__ = ios;
+    if (!ios) { var l = document.createElement("link"); l.rel = "manifest"; l.href = "./manifest.json"; document.head.appendChild(l); }
+  })();
+</script>
 <script>
   if ('serviceWorker' in navigator && window.isSecureContext) {
     navigator.serviceWorker.register('./sw.js').catch(function () {});
@@ -28,7 +43,7 @@ window.addEventListener("error", function (e) {
   if (r && !r.children.length) r.innerHTML = '<div class="boot"><b>Failed to start.</b><br>' + (e.message || e) + '</div>';
 });
 </script>
-<script>window.__DX_TRIAL__ = {"cohort":"A","modules":["chest_pain","dyspnea","abdominal_pain","fever_sepsis","fall","hip_pain","altered_mental_status","syncope"],"salt":"f2ca23fa98e80974f505bf6893b963d4","codes":{"xhin1jbunz":"A01","2foqtw4vv38":"A02","1ejzvumkhsy":"A03","151fcgqnh11":"A04","29kuzv01zh":"A05","29sp539l9ed":"A06","xzgxrdmsux":"A07","afujxnmkq2":"A08","wxx4h41vg":"A09","193m1u7cjli":"A10"},"days":30,"marker":"e1a53061ef02","build":"2026.10.07","inbox":null};</script>
+<script>window.__DX_TRIAL__ = {"cohort":"A","modules":["chest_pain","dyspnea","abdominal_pain","fever_sepsis","fall","hip_pain","altered_mental_status","syncope"],"salt":"f2ca23fa98e80974f505bf6893b963d4","codes":{"xhin1jbunz":"A01","2foqtw4vv38":"A02","1ejzvumkhsy":"A03","151fcgqnh11":"A04","29kuzv01zh":"A05","29sp539l9ed":"A06","xzgxrdmsux":"A07","afujxnmkq2":"A08","wxx4h41vg":"A09","193m1u7cjli":"A10"},"days":30,"marker":"e1a53061ef02","build":"2026.10.08","inbox":null};</script>
 <script>
 /* Minimal CommonJS registry so React's own CJS builds run in the browser
    with no bundler and no network. Modules are registered in dependency
@@ -17954,7 +17969,7 @@ function rankDdx(mod, anchors, results, W = WEIGHTS) {
         return { ...d, s };
     }).sort((a, b) => b.s - a.s);
 }
-const BUILD = { version: "2026.10.07", note: "152/152 citations publisher-checked; pilot build: 16 scripted scenarios, study-data file, terms PILOT-0.2; triage-note age reading fixed" };
+const BUILD = { version: "2026.10.08", note: "152/152 citations publisher-checked; pilot build: 16 scripted scenarios, study-data file, terms PILOT-0.2, iPhone Home Screen install path; triage-note age reading fixed" };
 const SNAP = (ranked) => ranked.map((d) => ({ id: d.id, name: d.name, tier: d.tier, s: Math.round(d.s * 100) / 100 }));
 function traceEvent(cs, mod, ev) {
     const prev = cs.trace || [];
@@ -18269,6 +18284,13 @@ const normCode = (c) => String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 const pilotSig = (salt, cohort, start) => cyrb53(`${salt}|${cohort}|${start}`).toString(36);
 const codeHash = (salt, code) => cyrb53(`${salt}|code|${normCode(code)}`).toString(36);
 const PILOT_KEY = "dxengine:pilot";
+const isStandalone = () => { try {
+    return window.navigator.standalone === true || !!(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+}
+catch (e) {
+    return false;
+} };
+const isIOS = () => typeof window !== "undefined" && window.__DX_IOS__ === true;
 function pilotLoad() {
     if (!TRIAL)
         return null;
@@ -18561,7 +18583,7 @@ function studyExport({ pilot, cases, audit, errors }) {
     const body = {
         kind: "dx-engine-study-data", v: 1, exportedAt: new Date().toISOString(), build: BUILD.version, weights: WEIGHTS.version,
         cohort: pilot ? pilot.cohort : null, tester: pilot ? pilot.testerId : null, role: pilot ? pilot.role : null,
-        agreement: pilot ? pilot.agreement : null, pilotStart: pilot ? pilot.start : null, enrolledAt: pilot ? pilot.acceptedAt : null, marker: pilot ? pilot.marker : null,
+        agreement: pilot ? pilot.agreement : null, pilotStart: pilot ? pilot.start : null, enrolledAt: pilot ? pilot.acceptedAt : null, mode: pilot ? pilot.mode || null : null, marker: pilot ? pilot.marker : null,
         counts: { cases: cases.length, scenarios: new Set(cases.map((r) => r.scenario).filter(Boolean)).size, audit: audit.length, errors: errors.length },
         cases: cases.map(studyCase),
         audit: audit.map((a) => ({ t: a.t, type: a.type, caseId: a.caseId || null, role: a.role || null,
@@ -18730,6 +18752,7 @@ function PilotGate({ onEnrolled }) {
     const [tester, setTester] = useState(null);
     const [prole, setPRole] = useState(null);
     const [agree, setAgree] = useState(false);
+    const [inTab, setInTab] = useState(false);
     const wrap = (children) => React.createElement("div", { style: { minHeight: "100vh", background: T.bg, color: T.ink, fontFamily: T.sans, padding: "40px 20px 90px", maxWidth: 560, margin: "0 auto", boxSizing: "border-box" } }, children);
     const Btnx = ({ children, onClick, disabled }) => React.createElement("button", { onClick: onClick, disabled: disabled, style: { width: "100%", minHeight: 50, borderRadius: 10, border: "none", background: disabled ? T.line : T.ink, color: disabled ? T.muted : "#fff", fontSize: 16, fontWeight: 600, cursor: disabled ? "default" : "pointer", marginTop: 14 } }, children);
     if (!linkOk)
@@ -18745,6 +18768,30 @@ function PilotGate({ onEnrolled }) {
                 "The pilot window closed on ",
                 pilotEnd({ start }).toLocaleDateString(),
                 ". Thank you for your interest.")));
+    if (isIOS() && !isStandalone() && !inTab)
+        return wrap(React.createElement(React.Fragment, null,
+            React.createElement(Eyebrow, { color: T.blue },
+                "Dx Engine \u00B7 pilot \u00B7 cohort ",
+                TRIAL.cohort),
+            React.createElement("h1", { style: { fontFamily: T.serif, fontWeight: 500, fontSize: 30, margin: "6px 0 10px" } }, "First, add this to your Home Screen"),
+            React.createElement("p", { style: { fontSize: 14.5, color: T.muted, lineHeight: 1.5, margin: "0 0 14px" } }, "Do this before entering your code. The Home Screen copy keeps your work safely on this phone and runs without signal."),
+            React.createElement("ol", { style: { fontSize: 16, lineHeight: 1.5, paddingLeft: 22, margin: "0 0 16px" } },
+                React.createElement("li", { style: { marginBottom: 8 } },
+                    "Tap the ",
+                    React.createElement("b", null, "Share"),
+                    " button (the square with an arrow pointing up)."),
+                React.createElement("li", { style: { marginBottom: 8 } },
+                    "Scroll down and tap ",
+                    React.createElement("b", null, "Add to Home Screen"),
+                    ", then ",
+                    React.createElement("b", null, "Add"),
+                    "."),
+                React.createElement("li", null,
+                    "Close this page. Open ",
+                    React.createElement("b", null, "Dx Pilot"),
+                    " from your Home Screen and enter your access code there.")),
+            React.createElement("p", { style: { fontSize: 13, color: T.muted, lineHeight: 1.5 } }, "No Share button? Open this link in Safari and try again."),
+            React.createElement("button", { onClick: () => setInTab(true), style: { background: "none", border: "none", color: T.blue, fontSize: 14, padding: "10px 0", cursor: "pointer", fontFamily: T.sans, textDecoration: "underline" } }, "I can't do that \u2014 continue in this browser tab")));
     if (step === "code")
         return wrap(React.createElement(React.Fragment, null,
             React.createElement(Eyebrow, { color: T.blue },
@@ -18791,7 +18838,7 @@ function PilotGate({ onEnrolled }) {
             React.createElement("input", { type: "checkbox", checked: agree, onChange: (e) => setAgree(e.target.checked), style: { width: 22, height: 22, marginTop: 1 } }),
             "I have read and agree to these terms"),
         React.createElement(Btnx, { disabled: !agree, onClick: () => {
-                const rec = { v: 1, cohort: TRIAL.cohort, testerId: tester, role: prole, start, k: sig, acceptedAt: new Date().toISOString(), agreement: AGREEMENT.version, build: BUILD.version, marker: TRIAL.marker };
+                const rec = { v: 1, cohort: TRIAL.cohort, testerId: tester, role: prole, start, k: sig, acceptedAt: new Date().toISOString(), agreement: AGREEMENT.version, build: BUILD.version, marker: TRIAL.marker, mode: isStandalone() ? "home-screen" : "browser-tab" };
                 try {
                     localStorage.setItem(PILOT_KEY, JSON.stringify(rec));
                 }
@@ -20840,7 +20887,7 @@ function App() {
                 setPilot(p);
                 setRole(p.role);
                 const base = { t: nowISO(), role: p.role, caseId: c.id, cohort: p.cohort, tester: p.testerId };
-                auditRef.current = [{ ...base, type: "pilot_enrolled", detail: `cohort ${p.cohort} · tester ${p.testerId} · role ${p.role} · agreement ${p.agreement} accepted · start ${p.start}` }, { ...base, type: "session", detail: "session started" }, ...auditRef.current].slice(0, 5000);
+                auditRef.current = [{ ...base, type: "pilot_enrolled", detail: `cohort ${p.cohort} · tester ${p.testerId} · role ${p.role} · agreement ${p.agreement} accepted · start ${p.start} · ${p.mode || "browser-tab"}` }, { ...base, type: "session", detail: "session started" }, ...auditRef.current].slice(0, 5000);
                 setAudit(auditRef.current);
                 store.set("audit:log", auditRef.current);
             } });

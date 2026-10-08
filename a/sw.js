@@ -1,6 +1,6 @@
 // Pilot service worker. Testers first open the page from a link with ?s=&k=, then relaunch from
 // the home screen without it — so cached pages are matched ignoring the query string.
-const CACHE = 'dx-pilot-2026.10.07-A';
+const CACHE = 'dx-pilot-2026.10.08-A';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((k) => Promise.all(k.filter((x) => x !== CACHE).map((x) => caches.delete(x)))).then(() => self.clients.claim())); });
